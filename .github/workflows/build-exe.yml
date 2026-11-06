@@ -1,0 +1,36 @@
+name: Build Windows Executable
+
+on:
+  push:
+    branches: [ "main" ]      # Trigger automatik bila kau push kod ke main branch
+  workflow_dispatch:          # Membolehkan kau klik butang "Run workflow" manual
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt || true
+          pip install customtkinter pyinstaller
+
+      - name: Build Executable with PyInstaller
+        run: |
+          pyinstaller --noconsole --onefile --name "TikTokLiveRecorderGUI" gui.py
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TikTokLiveRecorderGUI-Windows
+          path: dist/TikTokLiveRecorderGUI.exe
