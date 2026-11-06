@@ -1,9 +1,31 @@
 import os
-import subprocess
 import sys
 import threading
 from tkinter import filedialog
 import customtkinter as ctk
+
+# Pastikan folder src dikenali oleh sistem modul
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, "frozen", False):
+    BASE_DIR = sys._MEIPASS
+SRC_DIR = os.path.join(BASE_DIR, "src")
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+# Redirect standard output agar log terminal muncul di UI Textbox
+class TextRedirector:
+    def __init__(self, widget):
+        self.widget = widget
+
+    def write(self, string):
+        self.widget.insert("end", string)
+        self.widget.see("end")
+
+    def flush(self):
+        pass
+
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -17,15 +39,18 @@ class TikTokRecorderGUI(ctk.CTk):
         self.geometry("780x640")
         self.minsize(650, 500)
 
-        self.process = None
-
+        self.is_running = False
         self._build_ui()
+
+        # Alihkan stdout dan stderr ke Textbox GUI
+        sys.stdout = TextRedirector(self.console)
+        sys.stderr = TextRedirector(self.console)
 
     def _build_ui(self):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)
 
-        # --- Section 1: Parameter Form ---
+        # --- Bagian 1: Parameter Form ---
         form_frame = ctk.CTkFrame(self)
         form_frame.grid(row=0, column=0, padx=16, pady=(16, 8), sticky="ew")
         form_frame.grid_columnconfigure(1, weight=1)
@@ -81,7 +106,7 @@ class TikTokRecorderGUI(ctk.CTk):
         )
         self.interval_entry.pack(side="left")
 
-        # --- Section 2: Action Buttons ---
+        # --- Bagian 2: Tombol Aksi ---
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.grid(row=1, column=0, padx=16, pady=4, sticky="ew")
 
@@ -104,7 +129,7 @@ class TikTokRecorderGUI(ctk.CTk):
         )
         self.stop_btn.pack(side="right", fill="x", expand=True, padx=(8, 0))
 
-        # --- Section 3: Live Console Log ---
+        # --- Bagian 3: Live Output Terminal ---
         console_frame = ctk.CTkFrame(self)
         console_frame.grid(row=2, column=0, padx=16, pady=(8, 16), sticky="nsew")
         console_frame.grid_columnconfigure(0, weight=1)
@@ -133,78 +158,70 @@ class TikTokRecorderGUI(ctk.CTk):
         target = self.target_entry.get().strip()
         if not target:
             self._log(
-                "[GUI Error] Sila masukkan Username atau TikTok Live URL dahulu.\n"
+                "[GUI Error] Masukkan Username atau TikTok Live URL terlebih dahulu.\n"
             )
             return
 
-        cmd = [sys.executable, "src/main.py"]
+        # Rakit argumen baris perintah
+        args = ["main.py"]
 
         if target.startswith("http://") or target.startswith("https://"):
-            cmd.extend(["-url", target])
+            args.extend(["-url", target])
         else:
-            cmd.extend(["-user", target])
+            args.extend(["-user", target])
 
-        cmd.extend(["-mode", self.mode_var.get()])
+        args.extend(["-mode", self.mode_var.get()])
 
         out_dir = self.output_entry.get().strip()
         if out_dir:
             os.makedirs(out_dir, exist_ok=True)
-            cmd.extend(["-output", out_dir])
+            args.extend(["-output", out_dir])
 
         dur = self.duration_entry.get().strip()
         if dur.isdigit():
-            cmd.extend(["-duration", dur])
+            args.extend(["-duration", dur])
 
         interval = self.interval_entry.get().strip()
         if interval.isdigit():
-            cmd.extend(["-automatic_interval", interval])
+            args.extend(["-automatic_interval", interval])
 
         self.start_btn.configure(state="disabled")
         self.stop_btn.configure(state="normal")
-        self._log(f"[Starting Command]: {' '.join(cmd)}\n" + ("-" * 60) + "\n")
+        self.is_running = True
+        self._log(f"[Starting]: {' '.join(args)}\n" + ("-" * 60) + "\n")
 
-        thread = threading.Thread(target=self._run_process, args=(cmd,), daemon=True)
+        thread = threading.Thread(target=self._run_native, args=(args,), daemon=True)
         thread.start()
 
-    def _run_process(self, cmd):
+    def _run_native(self, args):
+        old_argv = sys.argv
         try:
-            self.process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                universal_newlines=True,
-                creationflags=(
-                    subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-                ),
-            )
-
-            for line in iter(self.process.stdout.readline, ""):
-                if line:
-                    self.after(0, self._log, line)
-
-            self.process.stdout.close()
-            self.process.wait()
-
+            sys.argv = args
+            # Import file main.py secara internal
+            from main import main
+            main()
+        except SystemExit:
+            pass
         except Exception as e:
-            self.after(0, self._log, f"\n[Process Error]: {str(e)}\n")
-
+            self._log(f"\n[Execution Error]: {str(e)}\n")
         finally:
+            sys.argv = old_argv
             self.after(0, self._reset_state)
 
     def _reset_state(self):
         self._log("\n" + ("-" * 60) + "\n[Process Ended]\n")
         self.start_btn.configure(state="normal")
         self.stop_btn.configure(state="disabled")
-        self.process = None
+        self.is_running = False
 
     def stop_recording(self):
-        if self.process:
-            self._log("\n[Terminating process... Sila tunggu FFmpeg flush file]\n")
-            self.process.terminate()
+        self._log("\n[Menghentikan proses...]\n")
+        # Karena berjalan di dalam thread yang sama, hentikan paksa proses jika diperlukan
+        os._exit(0)
 
 
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
     app = TikTokRecorderGUI()
     app.mainloop()
