@@ -2,8 +2,8 @@ import os
 import subprocess
 import sys
 import threading
-import customtkinter as ctk
 from tkinter import filedialog
+import customtkinter as ctk
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
@@ -34,9 +34,12 @@ class TikTokRecorderGUI(ctk.CTk):
             row=0, column=0, padx=10, pady=6, sticky="w"
         )
         self.target_entry = ctk.CTkEntry(
-            form_frame, placeholder_text="e.g. khaby.lame atau https://www.tiktok.com/@user/live"
+            form_frame,
+            placeholder_text="e.g. khaby.lame atau https://www.tiktok.com/@user/live",
         )
-        self.target_entry.grid(row=0, column=1, columnspan=2, padx=10, pady=6, sticky="ew")
+        self.target_entry.grid(
+            row=0, column=1, columnspan=2, padx=10, pady=6, sticky="ew"
+        )
 
         ctk.CTkLabel(form_frame, text="Mode:").grid(
             row=1, column=0, padx=10, pady=6, sticky="w"
@@ -65,11 +68,17 @@ class TikTokRecorderGUI(ctk.CTk):
         extra_frame.grid(row=3, column=0, columnspan=3, padx=10, pady=6, sticky="ew")
 
         ctk.CTkLabel(extra_frame, text="Duration (s):").pack(side="left", padx=(0, 4))
-        self.duration_entry = ctk.CTkEntry(extra_frame, width=90, placeholder_text="Optional")
+        self.duration_entry = ctk.CTkEntry(
+            extra_frame, width=90, placeholder_text="Optional"
+        )
         self.duration_entry.pack(side="left", padx=(0, 16))
 
-        ctk.CTkLabel(extra_frame, text="Auto Interval (m):").pack(side="left", padx=(0, 4))
-        self.interval_entry = ctk.CTkEntry(extra_frame, width=90, placeholder_text="Optional")
+        ctk.CTkLabel(extra_frame, text="Auto Interval (m):").pack(
+            side="left", padx=(0, 4)
+        )
+        self.interval_entry = ctk.CTkEntry(
+            extra_frame, width=90, placeholder_text="Optional"
+        )
         self.interval_entry.pack(side="left")
 
         # --- Section 2: Action Buttons ---
@@ -123,7 +132,9 @@ class TikTokRecorderGUI(ctk.CTk):
     def start_recording(self):
         target = self.target_entry.get().strip()
         if not target:
-            self._log("[GUI Error] Sila masukkan Username atau TikTok Live URL dahulu.\n")
+            self._log(
+                "[GUI Error] Sila masukkan Username atau TikTok Live URL dahulu.\n"
+            )
             return
 
         cmd = [sys.executable, "src/main.py"]
@@ -164,7 +175,9 @@ class TikTokRecorderGUI(ctk.CTk):
                 text=True,
                 bufsize=1,
                 universal_newlines=True,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+                creationflags=(
+                    subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+                ),
             )
 
             for line in iter(self.process.stdout.readline, ""):
